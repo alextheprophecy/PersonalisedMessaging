@@ -1,4 +1,5 @@
 "use client"
+import { useRouter } from 'next/navigation';
 import { useState, useRef } from 'react';
 import type { MouseEvent } from 'react';
 import { Button } from "@/components/ui/button"
@@ -6,9 +7,7 @@ import { Input } from "@/components/ui/input"
 
 export default function Home() {
   const [url, setUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<any>(null);
-  const [error, setError] = useState('');
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const glossRef = useRef<HTMLDivElement>(null);
 
@@ -36,28 +35,9 @@ export default function Home() {
     glossRef.current.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 60%)';
   };
 
-  const handleScrape = async () => {
-    setLoading(true);
-    setError('');
-    setData(null);
-    try {
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
-      });
-      const result = await response.json();
-      if (response.ok) {
-        setData(result);
-      } else {
-        setError(result.error || 'An error occurred.');
-      }
-    } catch {
-      setError('An unexpected error occurred.');
-    } finally {
-      setLoading(false);
+  const handleScrape = () => {
+    if (url) {
+      router.push(`/scraping?url=${encodeURIComponent(url)}`);
     }
   };
 
@@ -100,25 +80,10 @@ export default function Home() {
                 onChange={(e) => setUrl(e.target.value)}
                 className="flex-grow bg-white/20 border-white/30 text-white placeholder-white/50 focus:ring-2 focus:ring-white/50 rounded-lg"
               />
-              <Button onClick={handleScrape} disabled={loading} className="bg-white/30 text-white hover:bg-white/40 rounded-lg">
-                {loading ? 'Scraping...' : 'Scrape'}
+              <Button onClick={handleScrape} className="bg-white/30 text-white hover:bg-white/40 rounded-lg">
+                Scrape
               </Button>
             </div>
-
-            {error && (
-              <div className="mt-4 w-full text-center p-4 bg-red-500/30 rounded-lg">
-                <p className="text-white">{error}</p>
-              </div>
-            )}
-
-            {data && (
-              <div className="mt-4 w-full p-4 bg-black/30 rounded-lg">
-                <h2 className="text-xl font-bold text-white mb-2">Scraped Data</h2>
-                <pre className="text-left text-sm text-white/80 bg-black/20 p-4 rounded-md overflow-x-auto">
-                  {JSON.stringify(data, null, 2)}
-                </pre>
-              </div>
-            )}
         </div>
       </div>
     </main>

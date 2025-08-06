@@ -21,29 +21,21 @@ export async function POST(req: NextRequest) {
     const data: { [key: string]: any } = {};
 
     // Scrape "Daten und Miete"
-    $('h3:contains("Daten und Miete")').next('ul').find('li').each((i, el) => {
+    $('h3.label:contains("Daten und Miete")').nextAll('p').each((i, el) => {
       const strongText = $(el).find('strong').text().trim();
-      const value = $(el).contents().filter((_, el) => el.type === 'text').text().trim();
+      const value = $(el).contents().filter((_, child) => child.type === 'text').text().trim();
       if (strongText) {
-        data[strongText.toLowerCase().replace(' ', '_')] = value;
+        data[strongText.toLowerCase().replace(/ /g, '_')] = value;
       }
     });
 
     // Scrape "Adresse"
-    $('h3:contains("Adresse")').next('ul').find('li').each((i, el) => {
+    $('h3.label:contains("Adresse")').nextAll('p').each((i, el) => {
       const strongText = $(el).find('strong').text().trim();
-      let value = '';
-      if (strongText === 'Adresse') {
-        value = $(el).contents().filter((_, el) => el.type === 'text').text().trim();
-      } else if (strongText === 'Region') {
-        value = $(el).find('a').text().trim();
-      } else if (strongText === 'Ort') {
-        value = $(el).contents().filter((_, el) => el.type === 'text').text().trim();
-      } else if (strongText === 'Kreis / Quartier') {
-        value = $(el).find('a').text().trim();
-      }
       if (strongText) {
-        data[strongText.toLowerCase().replace(' / ', '_')] = value;
+        // Clone the element, remove the strong tag, and get the text
+        const value = $(el).clone().find('strong').remove().end().text().trim();
+        data[strongText.toLowerCase().replace(/ \/ /g, '_').replace(/ /g, '_')] = value;
       }
     });
 
