@@ -10,9 +10,10 @@ export default function Home() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const glossRef = useRef<HTMLDivElement>(null);
 
   const handleMouseMove = (e: MouseEvent<HTMLElement>) => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !glossRef.current) return;
 
     const { clientX: x, clientY: y } = e;
     const { innerWidth: width, innerHeight: height } = window;
@@ -21,11 +22,18 @@ export default function Home() {
     const rotateY = ((x / width) - 0.5) * 25;
     
     containerRef.current.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.05, 1.05, 1.05)`;
+
+    const { width: panelWidth, height: panelHeight } = containerRef.current.getBoundingClientRect();
+    const glossX = (panelWidth / 2) + (rotateY * 12);
+    const glossY = (panelHeight / 2) - (rotateX * 12);
+
+    glossRef.current.style.background = `radial-gradient(circle at ${glossX}px ${glossY}px, rgba(255, 255, 255, 0.2), transparent 50%)`;
   };
 
   const handleMouseLeave = () => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !glossRef.current) return;
     containerRef.current.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) scale3d(1, 1, 1)';
+    glossRef.current.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 60%)';
   };
 
   const handleScrape = async () => {
@@ -73,7 +81,8 @@ export default function Home() {
         className="relative z-10 w-full max-w-2xl bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 transition-transform duration-300 ease-out"
       >
         <div 
-          className="absolute inset-0 rounded-2xl pointer-events-none"
+          ref={glossRef}
+          className="absolute inset-0 rounded-2xl pointer-events-none transition-background"
           style={{ background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 60%)' }} 
         />
         <div className="relative flex flex-col items-center justify-center p-8 space-y-8">
