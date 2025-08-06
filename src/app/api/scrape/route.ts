@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     // Scrape "Beschreibungen"
     $('h3:contains("Beschreibungen")').nextAll('p').first().each((i, el) => {
-      const description = $(el).html()?.replace(/<br\s*\/?>/gi, '\n').trim();
+      const description = $(el).clone().find('strong.float').remove().end().html()?.replace(/<br\s*\/?>/gi, '\n').trim();
       data['description'] = description;
     });
 
