@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { MouseEvent, KeyboardEvent } from 'react';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Star } from 'lucide-react';
+import { Star, Trash2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface House {
   id: number;
@@ -13,6 +13,7 @@ interface House {
   scraped_at: string;
   liked: boolean;
   status: string;
+  done: boolean;
 }
 
 interface ParsedContent {
@@ -24,6 +25,7 @@ interface ParsedContent {
 export default function Home() {
   const [url, setUrl] = useState('');
   const [houses, setHouses] = useState<House[]>([]);
+  const [showDone, setShowDone] = useState(false);
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const glossRef = useRef<HTMLDivElement>(null);
@@ -100,7 +102,9 @@ export default function Home() {
   };
 
   const handleHouseClick = (e: MouseEvent<HTMLDivElement>, houseUrl: string) => {
-    if ((e.target as HTMLElement).closest('.like-button')) {
+    if ((e.target as HTMLElement).closest('.like-button') || 
+        (e.target as HTMLElement).closest('.delete-button') || 
+        (e.target as HTMLElement).closest('.done-button')) {
         e.stopPropagation();
         return;
       }
@@ -122,6 +126,44 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error updating like status:', error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this house?')) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(`/api/houses/${id}/delete`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        await fetchHouses();
+      } else {
+        console.error('Failed to delete house');
+      }
+    } catch (error) {
+      console.error('Error deleting house:', error);
+    }
+  };
+  
+  const handleDone = async (id: number, done: boolean) => {
+    try {
+      const res = await fetch(`/api/houses/${id}/done`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ done: !done }),
+      });
+
+      if (res.ok) {
+        await fetchHouses();
+      } else {
+        console.error('Failed to update done status');
+      }
+    } catch (error) {
+      console.error('Error updating done status:', error);
     }
   };
 
@@ -187,10 +229,18 @@ export default function Home() {
         </div>
       </div>
       
-      <div className="w-full max-w-5xl mx-auto p-4 perspective-1000">
+      <div className="w-full max-w-5xl mx-auto p-4 perspective-1000" style={{ pointerEvents: 'auto' }}>
         <h2 className="text-2xl font-semibold text-white mb-4 text-center">Previously Scraped</h2>
-        <div className="relative h-96 overflow-y-auto" style={{transformStyle: 'preserve-3d'}}>
-          {houses.map((house) => {
+        
+        {/* Active houses */}
+        <div className="relative max-h-96 mb-6 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-auto" style={{transformStyle: 'preserve-3d'}}>
+          {([...houses].filter(house => !house.done).sort((a, b) => {
+            // Sort by liked status first
+            if (a.liked && !b.liked) return -1;
+            if (!a.liked && b.liked) return 1;
+            // Then sort by timestamp (newest first)
+            return new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime();
+          })).map((house) => {
             const isLoading = house.status === 'loading';
             const content = parseHouseContent(house.content);
 
@@ -198,22 +248,108 @@ export default function Home() {
               <div
                 key={house.id}
                 onClick={(e) => handleHouseClick(e, house.url)}
-                className="w-full h-24 bg-white/5 p-4 rounded-lg cursor-pointer border border-white/10 mb-4 transition-transform duration-300 ease-out hover:bg-white/10 flex justify-between items-center"
+                className={`w-full p-4 rounded-lg cursor-pointer transition-transform duration-300 ease-out relative ${isLoading ? 'animate-pulse bg-gradient-to-r from-yellow-400/30 via-pink-500/20 to-purple-500/30 border-2 border-white/30' : 'bg-white/5 hover:bg-white/10 border border-white/10'}`}
               >
-                <div className="flex-grow">
-                    <h3 className="text-white font-semibold truncate">{isLoading ? 'Loading…' : `${content?.miete_per_monat ?? ''} - ${content?.adresse ?? ''}`}</h3>
-                    <p className="text-xs text-white/50">{new Date(house.scraped_at).toLocaleDateString()}</p>
+                {!isLoading && (
+                  <div className="absolute top-1 right-1 flex space-x-1">
+                    <button
+                      className="done-button p-2 rounded-full hover:bg-white/20 transition-colors"
+                      onClick={() => handleDone(house.id, house.done)}
+                      title="Mark as done"
+                    >
+                      <CheckCircle2 className="w-5 h-5 text-white/50 hover:text-green-400" />
+                    </button>
+                    <button
+                      className="like-button p-2 rounded-full hover:bg-white/20 transition-colors"
+                      onClick={() => handleLike(house.id, house.liked)}
+                    >
+                      <Star className={`w-5 h-5 ${house.liked ? 'text-yellow-400 fill-current' : 'text-white/50'}`} />
+                    </button>
+                    <button
+                      className="delete-button p-2 rounded-full hover:bg-white/20 transition-colors"
+                      onClick={() => handleDelete(house.id)}
+                    >
+                      <Trash2 className="w-5 h-5 text-white/50 hover:text-red-400" />
+                    </button>
+                  </div>
+                )}
+                <div className="py-2 flex flex-col">
+                    {isLoading ? (
+                      <h3 className="text-white font-semibold">Loading…</h3>
+                    ) : (
+                      <>
+                        <h3 className="text-white font-semibold">{content?.miete_per_monat ?? ''}</h3>
+                        <p className="text-white/70 truncate">{content?.adresse ?? ''}</p>
+                      </>
+                    )}
                 </div>
-                <button
-                  className="like-button p-2 rounded-full hover:bg-white/20 transition-colors"
-                  onClick={() => handleLike(house.id, house.liked)}
-                >
-                  <Star className={`w-5 h-5 ${house.liked ? 'text-yellow-400 fill-current' : 'text-white/50'}`} />
-                </button>
               </div>
             );
           })}
         </div>
+
+        {/* Completed houses */}
+        {houses.some(house => house.done) && (
+          <div className="mt-8 relative z-20" style={{ pointerEvents: 'auto' }}>
+            <button 
+              className="flex items-center space-x-2 mx-auto text-white/70 hover:text-white p-2 rounded transition-colors mb-4 relative z-20"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowDone(!showDone);
+              }}
+              style={{ pointerEvents: 'auto' }}
+            >
+              <span>Completed Houses</span>
+              {showDone ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            
+            {showDone && (
+              <div className="relative max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-auto" style={{transformStyle: 'preserve-3d'}}>
+                {([...houses].filter(house => house.done).sort((a, b) => {
+                  // Sort by timestamp (newest first)
+                  return new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime();
+                })).map((house) => {
+                  const content = parseHouseContent(house.content);
+
+                  return (
+                    <div
+                      key={`done-${house.id}`}
+                      onClick={(e) => handleHouseClick(e, house.url)}
+                      className="w-full p-4 rounded-lg cursor-pointer transition-transform duration-300 ease-out relative bg-green-900/20 hover:bg-green-900/30 border border-green-800/30"
+                    >
+                      <div className="absolute top-1 right-1 flex space-x-1">
+                        <button
+                          className="done-button p-2 rounded-full hover:bg-white/20 transition-colors"
+                          onClick={() => handleDone(house.id, house.done)}
+                          title="Mark as not done"
+                        >
+                          <CheckCircle2 className="w-5 h-5 text-green-400 fill-current" />
+                        </button>
+                        <button
+                          className="like-button p-2 rounded-full hover:bg-white/20 transition-colors"
+                          onClick={() => handleLike(house.id, house.liked)}
+                        >
+                          <Star className={`w-5 h-5 ${house.liked ? 'text-yellow-400 fill-current' : 'text-white/50'}`} />
+                        </button>
+                        <button
+                          className="delete-button p-2 rounded-full hover:bg-white/20 transition-colors"
+                          onClick={() => handleDelete(house.id)}
+                        >
+                          <Trash2 className="w-5 h-5 text-white/50 hover:text-red-400" />
+                        </button>
+                      </div>
+                      <div className="py-2 flex flex-col">
+                        <h3 className="text-white font-semibold">{content?.miete_per_monat ?? ''}</h3>
+                        <p className="text-white/70 truncate">{content?.adresse ?? ''}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );

@@ -3,7 +3,7 @@ import db from '@/lib/db';
 
 export async function GET() {
   try {
-    const stmt = db.prepare('SELECT id, url, content, scraped_at, liked, status FROM scraped_data ORDER BY liked DESC, scraped_at DESC');
+    const stmt = db.prepare('SELECT id, url, content, scraped_at, liked, status, done FROM scraped_data ORDER BY liked DESC, scraped_at DESC');
     const houses = stmt.all();
     return NextResponse.json(houses);
   } catch (error) {

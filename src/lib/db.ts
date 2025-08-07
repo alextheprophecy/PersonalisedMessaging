@@ -28,6 +28,15 @@ try {
   } catch (err) {
     db.exec('ALTER TABLE scraped_data ADD COLUMN status TEXT DEFAULT "complete"');
   }
+
+  // Ensure "done" column exists
+  try {
+    db.prepare('SELECT done FROM scraped_data LIMIT 1').get();
+  } catch (err) {
+    // Use INTEGER instead of BOOLEAN for SQLite compatibility
+    db.exec('ALTER TABLE scraped_data ADD COLUMN done INTEGER DEFAULT 0');
+  }
+  
   console.log('Table "scraped_data" is ready.');
 } catch (error) {
   console.error('Error connecting to the database:', error);
