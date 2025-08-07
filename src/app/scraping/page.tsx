@@ -1,10 +1,12 @@
 "use client"
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import './scraping.css';
 
 export default function ScrapingPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const url = searchParams.get('url');
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
@@ -43,7 +45,7 @@ export default function ScrapingPage() {
   }, [url]);
 
   return (
-    <main className="relative flex flex-col items-center justify-center min-h-screen w-full bg-black overflow-hidden">
+    <main className="relative flex flex-col items-center justify-center min-h-screen w-full bg-black overflow-hidden p-4">
       <div className="absolute top-0 left-0 w-full h-full bg-grid-white/[0.2] z-0"></div>
       
       <div className="absolute inset-0 z-0">
@@ -53,7 +55,13 @@ export default function ScrapingPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-4xl bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-8">
-        <div className="relative flex flex-col items-center justify-center space-y-8">
+        <Button 
+          onClick={() => router.back()}
+          className="absolute top-4 left-4 bg-white/20 text-white hover:bg-white/30 rounded-lg"
+        >
+          &larr; Back
+        </Button>
+        <div className="relative flex flex-col items-center justify-center space-y-8 mt-8">
           {loading && (
             <div className="flex flex-col items-center space-y-4">
               <div className="loader"></div>
