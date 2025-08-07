@@ -248,12 +248,12 @@ export default function ScrapingPage() {
                 <div className="grid md:grid-cols-3 gap-6 mb-6">
                   <div>
                     <p className="text-white/70 text-sm">Available From</p>
-                    <p>{data.ab_dem || data.availableFrom || 'Not specified'}</p>
+                    <p className="mt-1 text-base font-semibold text-red-300">{data.ab_dem || data.availableFrom || 'Not specified'}</p>
                   </div>
                   
                   <div>
                     <p className="text-white/70 text-sm">Available Until</p>
-                    <p>{data.bis || 'Not specified'}</p>
+                    <p className="mt-1  text-base font-semibold text-red-300">{data.bis || 'Not specified'}</p>
                   </div>
                   
                   <div>
