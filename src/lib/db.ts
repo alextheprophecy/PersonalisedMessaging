@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import fs from 'fs';
+
 
 const dbPath = path.resolve(process.cwd(), 'local.db');
 
@@ -25,14 +25,14 @@ try {
   // Ensure "status" column exists when upgrading from an older schema
   try {
     db.prepare('SELECT status FROM scraped_data LIMIT 1').get();
-  } catch (err) {
+  } catch {
     db.exec('ALTER TABLE scraped_data ADD COLUMN status TEXT DEFAULT "complete"');
   }
 
   // Ensure "done" column exists
   try {
     db.prepare('SELECT done FROM scraped_data LIMIT 1').get();
-  } catch (err) {
+  } catch {
     // Use INTEGER instead of BOOLEAN for SQLite compatibility
     db.exec('ALTER TABLE scraped_data ADD COLUMN done INTEGER DEFAULT 0');
   }
@@ -40,31 +40,31 @@ try {
   // Ensure transport time columns exist
   try {
     db.prepare('SELECT walking_time FROM scraped_data LIMIT 1').get();
-  } catch (err) {
+  } catch {
     db.exec('ALTER TABLE scraped_data ADD COLUMN walking_time TEXT DEFAULT NULL');
   }
 
   try {
     db.prepare('SELECT transit_time FROM scraped_data LIMIT 1').get();
-  } catch (err) {
+  } catch {
     db.exec('ALTER TABLE scraped_data ADD COLUMN transit_time TEXT DEFAULT NULL');
   }
 
   try {
     db.prepare('SELECT cycling_time FROM scraped_data LIMIT 1').get();
-  } catch (err) {
+  } catch {
     db.exec('ALTER TABLE scraped_data ADD COLUMN cycling_time TEXT DEFAULT NULL');
   }
 
   try {
     db.prepare('SELECT latitude FROM scraped_data LIMIT 1').get();
-  } catch (err) {
+  } catch {
     db.exec('ALTER TABLE scraped_data ADD COLUMN latitude REAL DEFAULT NULL');
   }
 
   try {
     db.prepare('SELECT longitude FROM scraped_data LIMIT 1').get();
-  } catch (err) {
+  } catch {
     db.exec('ALTER TABLE scraped_data ADD COLUMN longitude REAL DEFAULT NULL');
   }
   

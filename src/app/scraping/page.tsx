@@ -49,7 +49,6 @@ export default function ScrapingPage() {
   const [houseId, setHouseId] = useState<number | null>(null);
   const [liked, setLiked] = useState(false);
   const [done, setDone] = useState(false);
-  const [showMap, setShowMap] = useState(false);
   const [calculatingTransport, setCalculatingTransport] = useState(false);
   const [houseWithTransport, setHouseWithTransport] = useState<House | null>(null);
   // Function to fetch all houses
@@ -116,7 +115,7 @@ export default function ScrapingPage() {
         if (response.ok) {
           setData(result);
           
-          // After scraping, fetch the house again to get the ID
+          // After scraping, fetch the house again to get the ID and transport data
           const updatedHouses = await fetchAllHouses();
           const updatedHouse = updatedHouses.find((h: House) => h.url === url);
           if (updatedHouse) {
@@ -124,6 +123,7 @@ export default function ScrapingPage() {
             setLiked(updatedHouse.liked);
             setDone(updatedHouse.done);
             setHouseWithTransport(updatedHouse);
+            console.log('House loaded with transport data:', updatedHouse);
           }
         } else {
           setError(result.error || 'An error occurred.');
@@ -208,6 +208,24 @@ export default function ScrapingPage() {
     
     setCalculatingTransport(true);
     try {
+      console.log('Starting transport calculation for:', {
+        houseId,
+        address: data.adresse
+      });
+      
+      // Check if address exists
+      if (!data.adresse) {
+        alert('No address found in house data. Cannot calculate transport times.');
+        return;
+      }
+
+      // First, check debug info
+      const debugResponse = await fetch('/api/debug');
+      if (debugResponse.ok) {
+        const debugInfo = await debugResponse.json();
+        console.log('API Debug info:', debugInfo);
+      }
+
       const response = await fetch('/api/transport', {
         method: 'POST',
         headers: {
@@ -215,9 +233,12 @@ export default function ScrapingPage() {
         },
         body: JSON.stringify({
           houseId,
-          address: data.adresse
+          address: data.adresse,
+          ort: data.ort
         }),
       });
+      
+      console.log('Transport API response status:', response.status);
       
       if (response.ok) {
         const result = await response.json();
@@ -228,12 +249,16 @@ export default function ScrapingPage() {
         const updatedHouse = updatedHouses.find((h: House) => h.id === houseId);
         if (updatedHouse) {
           setHouseWithTransport(updatedHouse);
+          console.log('Updated house with transport data:', updatedHouse);
         }
       } else {
-        console.error('Failed to calculate transport times');
+        const errorText = await response.text();
+        console.error('Failed to calculate transport times:', response.status, errorText);
+        alert(`Failed to calculate transport times: ${response.status} - ${errorText}`);
       }
     } catch (error) {
       console.error('Error calculating transport times:', error);
+      alert(`Error calculating transport times: ${error}`);
     } finally {
       setCalculatingTransport(false);
     }
@@ -374,26 +399,34 @@ export default function ScrapingPage() {
                     
                     {/* Transport Controls */}
                     <div className="flex flex-wrap gap-3 mb-4">
-                      <Button 
-                        onClick={calculateTransportTime}
-                        disabled={calculatingTransport}
-                        className="bg-blue-500/20 text-white hover:bg-blue-500/30 rounded-lg flex items-center space-x-2"
-                      >
-                        <Clock className="w-4 h-4" />
-                        <span>{calculatingTransport ? 'Calculating...' : 'Calculate Transport Times'}</span>
-                      </Button>
+                      {/* Only show calculate button if transport data is missing */}
+                      {!(houseWithTransport?.walking_time || houseWithTransport?.transit_time || houseWithTransport?.cycling_time) && (
+                        <Button 
+                          onClick={calculateTransportTime}
+                          disabled={calculatingTransport}
+                          className="bg-blue-500/20 text-white hover:bg-blue-500/30 rounded-lg flex items-center space-x-2"
+                        >
+                          <Clock className="w-4 h-4" />
+                          <span>{calculatingTransport ? 'Calculating...' : 'Calculate Transport Times'}</span>
+                        </Button>
+                      )}
                       
-                      <Button 
-                        onClick={() => setShowMap(!showMap)}
-                        className="bg-green-500/20 text-white hover:bg-green-500/30 rounded-lg flex items-center space-x-2"
-                      >
-                        <MapPin className="w-4 h-4" />
-                        <span>{showMap ? 'Hide Map' : 'Show Map'}</span>
-                      </Button>
+                      {/* Show recalculate button if transport data exists */}
+                      {(houseWithTransport?.walking_time || houseWithTransport?.transit_time || houseWithTransport?.cycling_time) && (
+                        <Button 
+                          onClick={calculateTransportTime}
+                          disabled={calculatingTransport}
+                          className="bg-yellow-500/20 text-white hover:bg-yellow-500/30 rounded-lg flex items-center space-x-2"
+                        >
+                          <Clock className="w-4 h-4" />
+                          <span>{calculatingTransport ? 'Recalculating...' : 'Recalculate Transport'}</span>
+                        </Button>
+                      )}
+                      
                     </div>
 
                     {/* Transport Times Display */}
-                    {houseWithTransport && (houseWithTransport.walking_time || houseWithTransport.transit_time || houseWithTransport.cycling_time) && (
+                    {houseWithTransport && (houseWithTransport.walking_time || houseWithTransport.transit_time || houseWithTransport.cycling_time) ? (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         {houseWithTransport.walking_time && (
                           <div className="bg-white/5 rounded-lg p-4">
@@ -425,17 +458,25 @@ export default function ScrapingPage() {
                           </div>
                         )}
                       </div>
+                    ) : (
+                      <div className="bg-white/5 rounded-lg p-4 mb-4">
+                        <p className="text-white/70 text-sm">
+                          {calculatingTransport 
+                            ? "Calculating transport times..." 
+                            : "Transport times will be calculated automatically during scraping, or click the button above to calculate now."
+                          }
+                        </p>
+                      </div>
                     )}
 
                     {/* Map Section */}
-                    {showMap && (
-                      <div className="mt-4">
-                        <HousesMap 
-                          houses={houseWithTransport && houseWithTransport.latitude && houseWithTransport.longitude ? [houseWithTransport] : []} 
-                          apiKey={typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'your_google_maps_api_key_here') : 'your_google_maps_api_key_here'}
-                        />
-                      </div>
-                    )}
+                    <div className="mt-4">
+                      <HousesMap 
+                        houses={houseWithTransport && houseWithTransport.latitude && houseWithTransport.longitude ? [houseWithTransport] : []} 
+                        apiKey={typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'your_google_maps_api_key_here') : 'your_google_maps_api_key_here'}
+                      />
+                    </div>
+                  
 
                     {/* Address Info */}
                     <div className="mt-4 p-3 bg-white/5 rounded-lg">

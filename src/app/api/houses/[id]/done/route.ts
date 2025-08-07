@@ -3,10 +3,11 @@ import db from '@/lib/db';
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id);
+    const resolvedParams = await params;
+    const id = parseInt(resolvedParams.id);
     if (isNaN(id)) {
       return NextResponse.json({ error: 'Invalid house ID' }, { status: 400 });
     }

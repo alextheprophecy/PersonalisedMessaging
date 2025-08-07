@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
+import { Client } from '@googlemaps/google-maps-services-js';
 import db from '../../../lib/db';
 
+const client = new Client({});
+
+// ETH Zurich main building coordinates
+const ETH_COORDINATES = {
+  lat: 47.3769,
+  lng: 8.5417,
+  address: 'Rämistrasse 101, 8006 Zürich, Switzerland'
+};
+
+interface TransportTimes {
+  walking_time: string | null;
+  transit_time: string | null;
+  cycling_time: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 interface ScrapedData {
+  adresse?: string;
   [key: string]: unknown;
 }
 
@@ -82,6 +101,98 @@ async function performScrape(url: string): Promise<ScrapedData> {
   }
 }
 
+async function getCoordinatesFromAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const response = await client.geocode({
+      params: {
+        address,
+        key: process.env.GOOGLE_MAPS_API_KEY!,
+      }
+    });
+
+    if (response.data.results.length > 0) {
+      const location = response.data.results[0].geometry.location;
+      return { lat: location.lat, lng: location.lng };
+    }
+    return null;
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    return null;
+  }
+}
+
+async function calculateTransportTimesForScraping(origin: string): Promise<TransportTimes> {
+  const result: TransportTimes = {
+    walking_time: null,
+    transit_time: null,
+    cycling_time: null,
+    latitude: null,
+    longitude: null
+  };
+
+  try {
+    // Get coordinates first
+    const coordinates = await getCoordinatesFromAddress(origin);
+    if (coordinates) {
+      result.latitude = coordinates.lat;
+      result.longitude = coordinates.lng;
+    }
+
+    // Calculate walking time
+    const walkingResponse = await client.distancematrix({
+      params: {
+        origins: [origin],
+        destinations: [ETH_COORDINATES.address],
+        mode: 'walking' as any,
+        units: 'metric' as any,
+        key: process.env.GOOGLE_MAPS_API_KEY!,
+      }
+    });
+
+    if (walkingResponse.data.rows[0]?.elements[0]?.status === 'OK') {
+      const element = walkingResponse.data.rows[0].elements[0];
+      result.walking_time = element.duration?.text || null;
+    }
+
+    // Calculate transit time
+    const transitResponse = await client.distancematrix({
+      params: {
+        origins: [origin],
+        destinations: [ETH_COORDINATES.address],
+        mode: 'transit' as any,
+        units: 'metric' as any,
+        key: process.env.GOOGLE_MAPS_API_KEY!,
+      }
+    });
+
+    if (transitResponse.data.rows[0]?.elements[0]?.status === 'OK') {
+      const element = transitResponse.data.rows[0].elements[0];
+      result.transit_time = element.duration?.text || null;
+    }
+
+    // Calculate cycling time
+    const cyclingResponse = await client.distancematrix({
+      params: {
+        origins: [origin],
+        destinations: [ETH_COORDINATES.address],
+        mode: 'bicycling' as any,
+        units: 'metric' as any,
+        key: process.env.GOOGLE_MAPS_API_KEY!,
+      }
+    });
+
+    if (cyclingResponse.data.rows[0]?.elements[0]?.status === 'OK') {
+      const element = cyclingResponse.data.rows[0].elements[0];
+      result.cycling_time = element.duration?.text || null;
+    }
+
+  } catch (error) {
+    console.error('Distance Matrix API error:', error);
+  }
+
+  return result;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { url } = await req.json();
@@ -125,10 +236,52 @@ export async function POST(req: NextRequest) {
           return;
         }
 
+        // Calculate transport times if address is available and API key is configured
+        let transportData: TransportTimes = {
+          walking_time: null,
+          transit_time: null,
+          cycling_time: null,
+          latitude: null,
+          longitude: null
+        };
+
+        if (process.env.GOOGLE_MAPS_API_KEY && scrapedData.adresse) {
+          const adresse = scrapedData.adresse as string;
+          const ort = scrapedData.ort as string;
+          
+          // Build complete address
+          let completeAddress = adresse;
+          if (ort && !adresse.toLowerCase().includes('zürich') && !adresse.match(/\d{4}/)) {
+            completeAddress = `${adresse}, ${ort}`;
+          }
+          
+          console.log('Calculating transport times for address:', completeAddress);
+          try {
+            transportData = await calculateTransportTimesForScraping(completeAddress);
+            console.log('Transport calculation completed:', transportData);
+          } catch (error) {
+            console.error('Error calculating transport times during scraping:', error);
+          }
+        } else {
+          console.log('Skipping transport calculation:', {
+            hasApiKey: !!process.env.GOOGLE_MAPS_API_KEY,
+            hasAddress: !!scrapedData.adresse
+          });
+        }
+        
         const updateStmt = db.prepare(
-          'UPDATE scraped_data SET content = ?, status = ?, scraped_at = CURRENT_TIMESTAMP WHERE url = ?'
+          'UPDATE scraped_data SET content = ?, status = ?, scraped_at = CURRENT_TIMESTAMP, walking_time = ?, transit_time = ?, cycling_time = ?, latitude = ?, longitude = ? WHERE url = ?'
         );
-        updateStmt.run(JSON.stringify(scrapedData), 'complete', url);
+        updateStmt.run(
+          JSON.stringify(scrapedData), 
+          'complete', 
+          transportData.walking_time,
+          transportData.transit_time,
+          transportData.cycling_time,
+          transportData.latitude,
+          transportData.longitude,
+          url
+        );
       } catch (err) {
         console.error('Background scraping failed:', err);
         const errStmt = db.prepare(

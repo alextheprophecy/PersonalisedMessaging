@@ -29,8 +29,8 @@ interface HousesMapProps {
 
 // ETH Zurich coordinates
 const ETH_LOCATION = {
-  lat: 47.3769,
-  lng: 8.5417
+  lat: 47.37659190407654,
+  lng: 8.548000258889498,
 };
 
 // Zurich center as default map center
@@ -82,54 +82,9 @@ export default function HousesMap({ houses, apiKey }: HousesMapProps) {
       <APIProvider apiKey={apiKey}>
         <Map
           defaultCenter={MAP_CENTER}
-          defaultZoom={12}
+          defaultZoom={13}
           mapId="houses-map"
           style={{ width: '100%', height: '100%' }}
-          options={{
-            styles: [
-              {
-                elementType: "geometry",
-                stylers: [{ color: "#212121" }]
-              },
-              {
-                elementType: "labels.icon",
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                elementType: "labels.text.fill",
-                stylers: [{ color: "#757575" }]
-              },
-              {
-                elementType: "labels.text.stroke",
-                stylers: [{ color: "#212121" }]
-              },
-              {
-                featureType: "administrative",
-                elementType: "geometry",
-                stylers: [{ color: "#757575" }]
-              },
-              {
-                featureType: "road",
-                elementType: "geometry.fill",
-                stylers: [{ color: "#2c2c2c" }]
-              },
-              {
-                featureType: "road",
-                elementType: "labels.text.fill",
-                stylers: [{ color: "#8a8a8a" }]
-              },
-              {
-                featureType: "water",
-                elementType: "geometry",
-                stylers: [{ color: "#000000" }]
-              },
-              {
-                featureType: "water",
-                elementType: "labels.text.fill",
-                stylers: [{ color: "#3d3d3d" }]
-              }
-            ]
-          }}
         >
           {/* ETH Marker */}
           <AdvancedMarker
