@@ -9,7 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@googlemaps/google-maps-services-js": "^3.4.2",
     "@radix-ui/react-slot": "^1.2.3",
+    "@types/googlemaps": "^3.43.3",
+    "@vis.gl/react-google-maps": "^1.5.5",
     "axios": "^1.11.0",
     "better-sqlite3": "^12.2.0",
     "cheerio": "^1.1.2",

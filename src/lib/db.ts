@@ -36,6 +36,37 @@ try {
     // Use INTEGER instead of BOOLEAN for SQLite compatibility
     db.exec('ALTER TABLE scraped_data ADD COLUMN done INTEGER DEFAULT 0');
   }
+
+  // Ensure transport time columns exist
+  try {
+    db.prepare('SELECT walking_time FROM scraped_data LIMIT 1').get();
+  } catch (err) {
+    db.exec('ALTER TABLE scraped_data ADD COLUMN walking_time TEXT DEFAULT NULL');
+  }
+
+  try {
+    db.prepare('SELECT transit_time FROM scraped_data LIMIT 1').get();
+  } catch (err) {
+    db.exec('ALTER TABLE scraped_data ADD COLUMN transit_time TEXT DEFAULT NULL');
+  }
+
+  try {
+    db.prepare('SELECT cycling_time FROM scraped_data LIMIT 1').get();
+  } catch (err) {
+    db.exec('ALTER TABLE scraped_data ADD COLUMN cycling_time TEXT DEFAULT NULL');
+  }
+
+  try {
+    db.prepare('SELECT latitude FROM scraped_data LIMIT 1').get();
+  } catch (err) {
+    db.exec('ALTER TABLE scraped_data ADD COLUMN latitude REAL DEFAULT NULL');
+  }
+
+  try {
+    db.prepare('SELECT longitude FROM scraped_data LIMIT 1').get();
+  } catch (err) {
+    db.exec('ALTER TABLE scraped_data ADD COLUMN longitude REAL DEFAULT NULL');
+  }
   
   console.log('Table "scraped_data" is ready.');
 } catch (error) {

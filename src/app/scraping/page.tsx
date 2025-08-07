@@ -2,29 +2,62 @@
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Star, Trash2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Star, Trash2, CheckCircle2, MapPin, Clock } from 'lucide-react';
+import HousesMap from '@/components/HousesMap';
 import './scraping.css';
+
+interface HouseData {
+  adresse?: string;
+  "miete_/_monat"?: string;
+  price?: string;
+  ort?: string;
+  kreis_quartier?: string;
+  region?: string;
+  ab_dem?: string;
+  availableFrom?: string;
+  bis?: string;
+  "in_der_nähe"?: string;
+  description?: string;
+  seeking?: string;
+  we_are?: string;
+  features?: string[];
+  [key: string]: unknown;
+}
+
+interface House {
+  id: number;
+  url: string;
+  content: string;
+  scraped_at: string;
+  liked: boolean;
+  status: string;
+  done: boolean;
+  walking_time: string | null;
+  transit_time: string | null;
+  cycling_time: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
 
 export default function ScrapingPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const url = searchParams.get('url');
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<HouseData | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [houseId, setHouseId] = useState<number | null>(null);
   const [liked, setLiked] = useState(false);
   const [done, setDone] = useState(false);
-  const [showDoneHouses, setShowDoneHouses] = useState(false);
-  const [allHouses, setAllHouses] = useState<any[]>([]);
-
+  const [showMap, setShowMap] = useState(false);
+  const [calculatingTransport, setCalculatingTransport] = useState(false);
+  const [houseWithTransport, setHouseWithTransport] = useState<House | null>(null);
   // Function to fetch all houses
   const fetchAllHouses = async () => {
     try {
       const response = await fetch('/api/houses');
       if (response.ok) {
         const houses = await response.json();
-        setAllHouses(houses);
         return houses;
       }
       return [];
@@ -59,13 +92,14 @@ export default function ScrapingPage() {
       try {
         // First, try to fetch the house from the database
         const houses = await fetchAllHouses();
-        const house = houses.find((h: any) => h.url === url);
+        const house = houses.find((h: House) => h.url === url);
           
         if (house) {
           setData(JSON.parse(house.content));
           setHouseId(house.id);
           setLiked(house.liked);
           setDone(house.done);
+          setHouseWithTransport(house); // Store the full house data including transport times
           setLoading(false);
           return;
         }
@@ -84,11 +118,12 @@ export default function ScrapingPage() {
           
           // After scraping, fetch the house again to get the ID
           const updatedHouses = await fetchAllHouses();
-          const updatedHouse = updatedHouses.find((h: any) => h.url === url);
+          const updatedHouse = updatedHouses.find((h: House) => h.url === url);
           if (updatedHouse) {
             setHouseId(updatedHouse.id);
             setLiked(updatedHouse.liked);
             setDone(updatedHouse.done);
+            setHouseWithTransport(updatedHouse);
           }
         } else {
           setError(result.error || 'An error occurred.');
@@ -165,6 +200,42 @@ export default function ScrapingPage() {
       }
     } catch (error) {
       console.error('Error updating done status:', error);
+    }
+  };
+
+  const calculateTransportTime = async () => {
+    if (!houseId || !data?.adresse || calculatingTransport) return;
+    
+    setCalculatingTransport(true);
+    try {
+      const response = await fetch('/api/transport', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          houseId,
+          address: data.adresse
+        }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Transport calculation completed:', result);
+        
+        // Update the house data with transport times
+        const updatedHouses = await fetchAllHouses();
+        const updatedHouse = updatedHouses.find((h: House) => h.id === houseId);
+        if (updatedHouse) {
+          setHouseWithTransport(updatedHouse);
+        }
+      } else {
+        console.error('Failed to calculate transport times');
+      }
+    } catch (error) {
+      console.error('Error calculating transport times:', error);
+    } finally {
+      setCalculatingTransport(false);
     }
   };
 
@@ -280,7 +351,7 @@ export default function ScrapingPage() {
                   <div className="mt-4">
                     <h3 className="text-xl font-semibold text-white/90 mb-1">Features</h3>
                     <ul className="list-disc pl-5 text-white/80">
-                      {data.features.map((feature, index) => (
+                      {data.features.map((feature: string, index: number) => (
                         <li key={index}>{feature}</li>
                       ))}
                     </ul>
@@ -295,71 +366,85 @@ export default function ScrapingPage() {
                     </pre>
                   </details>
                 </div>
-                
-                {/* Completed Houses Dropdown */}
-                <div className="mt-6 pt-4 border-t border-white/20">
-                  <button 
-                    className="flex items-center justify-center space-x-2 w-full bg-white/10 hover:bg-white/20 text-white p-3 rounded-lg transition-colors"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowDoneHouses(prev => !prev);
-                    }}
-                  >
-                    <span className="text-lg font-medium">Completed Houses</span>
-                    {showDoneHouses ? <ChevronUp className="w-5 h-5 ml-2" /> : <ChevronDown className="w-5 h-5 ml-2" />}
-                  </button>
-                  
-                  {showDoneHouses && (
-                    <div className="mt-4 grid gap-4 max-h-96 overflow-y-auto">
-                      {allHouses.filter(house => house.done).length > 0 ? (
-                        allHouses.filter(house => house.done).map((house) => {
-                          try {
-                            const content = JSON.parse(house.content);
-                            
-                            return (
-                              <div 
-                                key={house.id}
-                                onClick={() => router.push(`/scraping?url=${encodeURIComponent(house.url)}`)}
-                                className="p-4 rounded-lg cursor-pointer transition-colors bg-green-900/20 hover:bg-green-900/30 border border-green-800/30"
-                              >
-                                <div className="flex justify-between items-center mb-2">
-                                  <div>
-                                    <p className="text-xl font-bold text-green-400">
-                                      {content["miete_/_monat"] || content.price || 'Not available'}
-                                    </p>
-                                  </div>
-                                  <div className="text-right">
-                                    {house.url !== url && (
-                                      <Button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          router.push(`/scraping?url=${encodeURIComponent(house.url)}`);
-                                        }} 
-                                        className="text-xs py-1 px-2 h-auto bg-white/10 hover:bg-white/20"
-                                      >
-                                        View
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                                <p className="text-white text-sm">
-                                  {content.adresse && `${content.adresse}, `}
-                                  {content.ort || 'Address not available'}
-                                </p>
-                              </div>
-                            );
-                          } catch (e) {
-                            console.error("Error parsing house content:", e);
-                            return null;
-                          }
-                        })
-                      ) : (
-                        <p className="text-white/70 text-center py-4">No completed houses yet</p>
-                      )}
+
+                {/* Transport and Map Section */}
+                {data?.adresse && (
+                  <div className="mt-6 pt-4 border-t border-white/20">
+                    <h3 className="text-xl font-semibold text-white/90 mb-4">Transport to ETH Zurich</h3>
+                    
+                    {/* Transport Controls */}
+                    <div className="flex flex-wrap gap-3 mb-4">
+                      <Button 
+                        onClick={calculateTransportTime}
+                        disabled={calculatingTransport}
+                        className="bg-blue-500/20 text-white hover:bg-blue-500/30 rounded-lg flex items-center space-x-2"
+                      >
+                        <Clock className="w-4 h-4" />
+                        <span>{calculatingTransport ? 'Calculating...' : 'Calculate Transport Times'}</span>
+                      </Button>
+                      
+                      <Button 
+                        onClick={() => setShowMap(!showMap)}
+                        className="bg-green-500/20 text-white hover:bg-green-500/30 rounded-lg flex items-center space-x-2"
+                      >
+                        <MapPin className="w-4 h-4" />
+                        <span>{showMap ? 'Hide Map' : 'Show Map'}</span>
+                      </Button>
                     </div>
-                  )}
-                </div>
+
+                    {/* Transport Times Display */}
+                    {houseWithTransport && (houseWithTransport.walking_time || houseWithTransport.transit_time || houseWithTransport.cycling_time) && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        {houseWithTransport.walking_time && (
+                          <div className="bg-white/5 rounded-lg p-4">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <span className="text-2xl">🚶</span>
+                              <span className="text-white font-semibold">Walking</span>
+                            </div>
+                            <p className="text-white/80">{houseWithTransport.walking_time}</p>
+                          </div>
+                        )}
+                        
+                        {houseWithTransport.transit_time && (
+                          <div className="bg-white/5 rounded-lg p-4">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <span className="text-2xl">🚌</span>
+                              <span className="text-white font-semibold">Public Transport</span>
+                            </div>
+                            <p className="text-white/80">{houseWithTransport.transit_time}</p>
+                          </div>
+                        )}
+                        
+                        {houseWithTransport.cycling_time && (
+                          <div className="bg-white/5 rounded-lg p-4">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <span className="text-2xl">🚴</span>
+                              <span className="text-white font-semibold">Cycling</span>
+                            </div>
+                            <p className="text-white/80">{houseWithTransport.cycling_time}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Map Section */}
+                    {showMap && (
+                      <div className="mt-4">
+                        <HousesMap 
+                          houses={houseWithTransport && houseWithTransport.latitude && houseWithTransport.longitude ? [houseWithTransport] : []} 
+                          apiKey={typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'your_google_maps_api_key_here') : 'your_google_maps_api_key_here'}
+                        />
+                      </div>
+                    )}
+
+                    {/* Address Info */}
+                    <div className="mt-4 p-3 bg-white/5 rounded-lg">
+                      <p className="text-white/70 text-sm">Address: {data.adresse}</p>
+                      <p className="text-white/70 text-sm">Destination: ETH Zurich Main Building (Rämistrasse 101, 8006 Zürich)</p>
+                    </div>
+                  </div>
+                )}
+                
               </div>
             </div>
           )}

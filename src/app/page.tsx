@@ -180,6 +180,8 @@ export default function Home() {
     }
   };
 
+
+
   return (
     <main 
       className="relative flex flex-col items-center justify-between min-h-screen w-full bg-black overflow-hidden p-4"
@@ -225,11 +227,15 @@ export default function Home() {
                   Scrape
                 </Button>
               </div>
+
+
           </div>
         </div>
       </div>
       
       <div className="w-full max-w-5xl mx-auto p-4 perspective-1000" style={{ pointerEvents: 'auto' }}>
+
+        
         <h2 className="text-2xl font-semibold text-white mb-4 text-center">Previously Scraped</h2>
         
         {/* Active houses */}
